@@ -7,37 +7,65 @@
   <style>
     body {
       font-family: sans-serif;
+      margin: 0;
+      padding: 1rem;
+      box-sizing: border-box;
+    }
+    .controls {
       display: flex;
-      flex-direction: column;
+      justify-content: flex-start;
       align-items: center;
       gap: 1rem;
-      margin: 2rem;
-    }
-    canvas {
-      border: 1px solid #ccc;
-      max-width: 100%;
-      background-color: white;
+      margin-bottom: 1rem;
     }
     .preview {
       display: flex;
-      gap: 2rem;
+      flex-direction: row;
+      height: calc(100vh - 100px);
     }
-    button {
+    .preview > div {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: 1px solid #ccc;
+      background: #f9f9f9;
+    }
+    canvas, img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    button, label {
       padding: 0.5rem 1rem;
       font-size: 1rem;
+      cursor: pointer;
+    }
+    input[type="file"] {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <div>
+  <div class="controls">
+    <label for="uploadInput" style="border: 1px solid #ccc; padding: 0.5rem 1rem; cursor: pointer;">
+      Upload Image
+    </label>
+    <input type="file" id="uploadInput" accept="image/*" />
+    <label>
+      <input type="checkbox" id="counterwiseCheckbox" onchange="drawImage()"> Counterwise
+    </label>
+    <label>
+      <input type="checkbox" id="fit2048Checkbox" onchange="drawImage()"> Fit 2048
+    </label>
     <button onclick="downloadImage()">Download Image</button>
   </div>
   <div class="preview">
     <div>
-      <img id="original" src="" alt="Original Image" style="max-width: 400px;" />
+      <img id="original" src="" alt="Original Image" />
     </div>
     <div>
-      <canvas id="canvas"></canvas>
+      <canvas id="canvas" width="1208" height="2280"></canvas>
     </div>
   </div>
 
@@ -45,17 +73,34 @@
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     const originalImg = document.getElementById("original");
+    const counterwiseCheckbox = document.getElementById("counterwiseCheckbox");
+    const fit2048Checkbox = document.getElementById("fit2048Checkbox");
+    const uploadInput = document.getElementById("uploadInput");
     let img = new Image();
+    let originalFileName = "edited_image";
 
-    window.addEventListener("dragover", e => {
-      e.preventDefault();
+    uploadInput.addEventListener("change", () => {
+      const file = uploadInput.files[0];
+      if (file && file.type.startsWith("image/")) {
+        originalFileName = file.name.replace(/\.[^/.]+$/, "");
+        const reader = new FileReader();
+        reader.onload = () => {
+          img.onload = () => {
+            originalImg.src = img.src;
+            drawImage();
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      }
     });
 
+    window.addEventListener("dragover", e => e.preventDefault());
     window.addEventListener("drop", e => {
       e.preventDefault();
-
       const file = e.dataTransfer.files[0];
       if (file && file.type.startsWith("image/")) {
+        originalFileName = file.name.replace(/\.[^/.]+$/, "");
         const reader = new FileReader();
         reader.onload = () => {
           img.onload = () => {
@@ -80,7 +125,8 @@
       rotatedCanvas.height = w;
       const rctx = rotatedCanvas.getContext("2d");
       rctx.translate(h / 2, w / 2);
-      rctx.rotate(Math.PI / 2);
+      const rotateAmount = counterwiseCheckbox.checked ? -Math.PI / 2 : Math.PI / 2;
+      rctx.rotate(rotateAmount);
       rctx.drawImage(srcCanvas, -w / 2, -h / 2);
 
       return rotatedCanvas;
@@ -137,10 +183,11 @@
       ctx.drawImage(photoinfoRaw, portraitLayout.photoinfo.x, portraitLayout.photoinfo.y);
     }
 
-    function downloadImage() {
+    async function downloadImage() {
       const link = document.createElement("a");
-      link.download = "edited_image.png";
-      link.href = canvas.toDataURL();
+      link.download = `${originalFileName}-rotated.png`;
+	  data = fit2048Checkbox.checked ? URL.createObjectURL(await (resizeLanczos(canvas, 1085, 2048).convertToBlob())) : canvas.toDataURL()
+      link.href = data;
       link.click();
     }
   </script>
