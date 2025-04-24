@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Editor</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      margin: 2rem;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      max-width: 100%;
+      background-color: white;
+    }
+    .preview {
+      display: flex;
+      gap: 2rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <button onclick="downloadImage()">Download Image</button>
+  </div>
+  <div class="preview">
+    <div>
+      <img id="original" src="" alt="Original Image" style="max-width: 400px;" />
+    </div>
+    <div>
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const originalImg = document.getElementById("original");
+    let img = new Image();
+
+    window.addEventListener("dragover", e => {
+      e.preventDefault();
+    });
+
+    window.addEventListener("drop", e => {
+      e.preventDefault();
+
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          img.onload = () => {
+            originalImg.src = img.src;
+            drawImage();
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function cropAndRotate(x, y, w, h) {
+      const srcCanvas = document.createElement("canvas");
+      srcCanvas.width = w;
+      srcCanvas.height = h;
+      const srcCtx = srcCanvas.getContext("2d");
+      srcCtx.drawImage(img, x, y, w, h, 0, 0, w, h);
+
+      const rotatedCanvas = document.createElement("canvas");
+      rotatedCanvas.width = h;
+      rotatedCanvas.height = w;
+      const rctx = rotatedCanvas.getContext("2d");
+      rctx.translate(h / 2, w / 2);
+      rctx.rotate(Math.PI / 2);
+      rctx.drawImage(srcCanvas, -w / 2, -h / 2);
+
+      return rotatedCanvas;
+    }
+
+    function cropRaw(x, y, w, h) {
+      const rawCanvas = document.createElement("canvas");
+      rawCanvas.width = w;
+      rawCanvas.height = h;
+      const rawCtx = rawCanvas.getContext("2d");
+      rawCtx.drawImage(img, x, y, w, h, 0, 0, w, h);
+      return rawCanvas;
+    }
+
+    function resizeLanczos(sourceCanvas, targetWidth, targetHeight) {
+      const offscreen = new OffscreenCanvas(targetWidth, targetHeight);
+      const ctx = offscreen.getContext("2d", { willReadFrequently: true });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(sourceCanvas, 0, 0, sourceCanvas.width, sourceCanvas.height, 0, 0, targetWidth, targetHeight);
+      return offscreen;
+    }
+
+    function drawImage() {
+      const landscape = {
+        photo: { x: 64, y: 69, w: 1920, h: 1080 },
+        memo: { x: 64, y: 1164, w: 1920, h: 208 },
+        photographer: { x: 64, y: 1388, w: 960, h: 44 },
+        photoinfo: { x: 1024, y: 1388, w: 960, h: 44 }
+      };
+
+      const portraitLayout = {
+        canvas: { w: 1208, h: 2280 },
+        photo: { x: 64, y: 69 },
+        memo: { x: 64, y: 2024, w: 1080, h: 117 },
+        photographer: { x: 64, y: 2176 },
+        photoinfo: { x: 184, y: 2228 }
+      };
+
+      canvas.width = portraitLayout.canvas.w;
+      canvas.height = portraitLayout.canvas.h;
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const photo = cropAndRotate(landscape.photo.x, landscape.photo.y, landscape.photo.w, landscape.photo.h);
+      const memoRaw = cropRaw(landscape.memo.x, landscape.memo.y, landscape.memo.w, landscape.memo.h);
+      const memo = resizeLanczos(memoRaw, portraitLayout.memo.w, portraitLayout.memo.h);
+      const photographerRaw = cropRaw(landscape.photographer.x, landscape.photographer.y, landscape.photographer.w, landscape.photographer.h);
+      const photoinfoRaw = cropRaw(landscape.photoinfo.x, landscape.photoinfo.y, landscape.photoinfo.w, landscape.photoinfo.h);
+
+      ctx.drawImage(photo, portraitLayout.photo.x, portraitLayout.photo.y);
+      ctx.drawImage(memo, portraitLayout.memo.x, portraitLayout.memo.y);
+      ctx.drawImage(photographerRaw, portraitLayout.photographer.x, portraitLayout.photographer.y);
+      ctx.drawImage(photoinfoRaw, portraitLayout.photoinfo.x, portraitLayout.photoinfo.y);
+    }
+
+    function downloadImage() {
+      const link = document.createElement("a");
+      link.download = "edited_image.png";
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  </script>
+</body>
+</html>
